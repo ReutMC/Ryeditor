@@ -22,7 +22,7 @@
     "dist:linux": "npm run build && electron-builder --linux AppImage --x64"
   },
   "dependencies": {
-    "node-pty": "1.0.0"
+    "node-pty": "1.1.0-beta34"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.1",
@@ -36,6 +36,6 @@
   },
   "allowScripts": {
     "electron@33.4.11": true,
-    "node-pty@1.0.0": true
+    "node-pty@1.1.0-beta34": true
   }
 }
