@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; script-src 'self'; worker-src 'self' blob:" />
+  <title>Ryeditor</title>
+  <link rel="stylesheet" href="./vendor/xterm.css" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-theme="dark">
+  <div id="app">
+    <!-- Title bar -->
+    <header id="titlebar">
+      <div class="tb-left">
+        <span id="logo-badge" title="Ryeditor">
+          <svg width="18" height="18" viewBox="0 0 512 512" aria-hidden="true">
+            <rect x="16" y="16" width="480" height="480" rx="96" fill="#0E1726"/>
+            <path d="M170 140 V372" stroke="url(#g1)" stroke-width="44" stroke-linecap="round" fill="none"/>
+            <path d="M170 162 H240 a58 58 0 0 1 0 116 H170" stroke="url(#g1)" stroke-width="44" stroke-linecap="round" fill="none"/>
+            <path d="M248 286 L330 372" stroke="#2BD9C7" stroke-width="44" stroke-linecap="round" fill="none"/>
+            <defs>
+              <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#2F6FED"/><stop offset="1" stop-color="#2BD9C7"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </span>
+        <span class="tb-title">Ryeditor</span>
+        <span id="tb-workspace" class="tb-workspace">no folder open</span>
+      </div>
+      <div class="tb-actions">
+        <button id="btn-open-folder" class="tb-btn" title="Open Folder (Ctrl+O)">Open Folder</button>
+        <button id="btn-palette" class="tb-btn" title="Command Palette (Ctrl+Shift+P)">⌘ Commands</button>
+        <button id="btn-settings" class="tb-btn" title="Settings">⚙ Settings</button>
+      </div>
+    </header>
+
+    <!-- Body -->
+    <div id="body">
+      <!-- Activity bar -->
+      <nav id="activity" aria-label="Primary">
+        <button class="act-btn active" data-panel="explorer" title="Explorer">🗂️</button>
+        <button class="act-btn" data-panel="ai" title="AI (Agent / Ask / Plan)">✦</button>
+        <button class="act-btn" data-panel="terminal" title="Terminal (Ctrl+`)">⌗</button>
+        <div class="act-spacer"></div>
+        <button class="act-btn" id="act-undo-ai" title="Undo last AI file change">↺</button>
+      </nav>
+
+      <!-- Sidebars -->
+      <aside id="sidebar-explorer" class="sidebar">
+        <div class="side-head">
+          <span>EXPLORER</span>
+          <div>
+            <button id="btn-new-file" class="mini" title="New File">＋File</button>
+            <button id="btn-new-folder" class="mini" title="New Folder">＋Dir</button>
+            <button id="btn-refresh" class="mini" title="Refresh">⟳</button>
+          </div>
+        </div>
+        <div id="file-tree" class="side-body" role="tree"></div>
+      </aside>
+
+      <aside id="sidebar-ai" class="sidebar hidden">
+        <div class="side-head">
+          <span>AI — <select id="ai-mode" aria-label="AI mode">
+            <option value="ask">Ask</option>
+            <option value="plan">Plan</option>
+            <option value="agent" selected>Agent</option>
+          </select></span>
+          <div>
+            <button id="btn-memory" class="mini" title="Project memory">✎ Memory</button>
+          </div>
+        </div>
+        <div class="ai-provider-row">
+          <label for="ai-provider">Model</label>
+          <select id="ai-provider" aria-label="AI provider"></select>
+        </div>
+        <div id="ai-log" class="side-body ai-log" aria-live="polite"></div>
+        <div class="ai-input-row">
+          <textarea id="ai-input" rows="3" placeholder="Ask anything… Agent can edit files & run commands (with approval)"></textarea>
+          <button id="ai-send" class="primary" title="Send (Enter)">Send</button>
+          <button id="ai-stop" class="hidden" title="Stop">■</button>
+        </div>
+      </aside>
+
+      <!-- Main column -->
+      <div id="main-col">
+        <div id="tabs-bar" role="tablist"></div>
+        <div id="editor-host"><div id="monaco-host"></div><div id="editor-empty">Open a folder and start editing.<br/><span class="hint">Ctrl+O — open folder · Ctrl+S — save · Alt+\ — inline AI</span></div></div>
+        <div id="panel-terminal" class="hidden">
+          <div class="term-head">
+            <span>TERMINAL <span id="term-backend" class="badge"></span></span>
+            <div>
+              <button id="btn-term-new" class="mini" title="New terminal">＋</button>
+              <button id="btn-term-clear" class="mini" title="Clear">clear</button>
+              <button id="btn-term-close" class="mini" title="Hide">✕</button>
+            </div>
+          </div>
+          <div id="term-tabs"></div>
+          <div id="term-hosts"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <footer id="statusbar">
+      <span id="st-workspace">no workspace</span>
+      <span class="st-sep"></span>
+      <span id="st-mode">agent</span>
+      <span class="st-sep"></span>
+      <span id="st-model">no model</span>
+      <span class="flex1"></span>
+      <span id="st-cursor"></span>
+      <span class="st-sep"></span>
+      <span id="st-app">Ryeditor</span>
+    </footer>
+  </div>
+
+  <!-- Modals -->
+  <div id="modal-backdrop" class="hidden">
+    <div id="modal-box" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <script src="./vendor/xterm.js"></script>
+  <script src="./vendor/xterm-addon-fit.js"></script>
+  <script src="./vs/loader.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

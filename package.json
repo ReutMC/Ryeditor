@@ -1,0 +1,41 @@
+{
+  "name": "ryeditor",
+  "productName": "Ryeditor",
+  "version": "0.1.0",
+  "description": "Ryeditor — an original AI-native code editor with multi-provider AI, agent mode, real terminal and inline completions.",
+  "main": "dist/main/main.js",
+  "author": "Ryeditor Contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/ReutMC/Ryeditor#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ReutMC/Ryeditor.git"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
+    "compile": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && node scripts/build-renderer.mjs",
+    "build": "npm run typecheck && npm run compile",
+    "start": "npm run compile && electron .",
+    "smoke": "electron . --smoke-test",
+    "rebuild:pty": "electron-rebuild -f -w node-pty",
+    "dist:win": "npm run build && electron-builder --win nsis portable --x64",
+    "dist:linux": "npm run build && electron-builder --linux AppImage --x64"
+  },
+  "dependencies": {
+    "node-pty": "1.0.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@types/node": "^20.17.9",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "monaco-editor": "^0.52.2",
+    "typescript": "^5.6.3",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "node-pty@1.0.0": true
+  }
+}

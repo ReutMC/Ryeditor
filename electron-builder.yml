@@ -1,0 +1,44 @@
+appId: com.ryeditor.app
+productName: Ryeditor
+copyright: Copyright © 2025 Ryeditor Contributors
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**
+  - "!**/*.map"
+  - package.json
+
+asar: true
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Ryeditor
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+portable:
+  artifactName: ${productName}-Portable-${version}.${ext}
+
+linux:
+  target:
+    - AppImage
+  icon: build/icon.png
+  category: Development

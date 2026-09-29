@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist/renderer",
+    "rootDir": "src/renderer",
+    "strict": true,
+    "skipLibCheck": true,
+    "sourceMap": false,
+    "types": [],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/renderer/**/*.ts"]
+}
