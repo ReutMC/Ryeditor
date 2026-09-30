@@ -92,6 +92,41 @@
     return b;
   }
 
+  function footOf(body: HTMLElement): HTMLElement {
+    return body.parentElement!.querySelector('.modal-foot') as HTMLElement;
+  }
+
+  /** Electron has no window.prompt — modal-based replacement. */
+  function uiPrompt(title: string, label: string, def: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      modal(title, (body, close) => {
+        body.innerHTML = `<label>${esc(label)}</label><input type="text" id="ui-prompt-input" />`;
+        const input = body.querySelector('#ui-prompt-input') as HTMLInputElement;
+        input.value = def;
+        const finish = (v: string | null) => { close(); resolve(v); };
+        input.onkeydown = (ev) => {
+          if (ev.key === 'Enter') finish(input.value.trim() || null);
+          else if (ev.key === 'Escape') finish(null);
+        };
+        addFootButton(footOf(body), 'Cancel', 'btn-secondary', () => finish(null));
+        addFootButton(footOf(body), 'OK', 'primary', () => finish(input.value.trim() || null));
+        setTimeout(() => { input.focus(); input.select(); }, 30);
+      });
+    });
+  }
+
+  /** Electron has no window.confirm — modal-based replacement. */
+  function uiConfirm(title: string, message: string, danger = false): Promise<boolean> {
+    return new Promise((resolve) => {
+      modal(title, (body, close) => {
+        body.innerHTML = `<div style="line-height:1.6">${esc(message)}</div>`;
+        const done = (v: boolean) => { close(); resolve(v); };
+        addFootButton(footOf(body), 'Cancel', 'btn-secondary', () => done(false));
+        addFootButton(footOf(body), danger ? 'Delete' : 'OK', danger ? 'btn-danger' : 'primary', () => done(true));
+      });
+    });
+  }
+
   // ------------------------------------------------------------------ theme
   function applyTheme(t: 'dark' | 'light' | 'hc'): void {
     document.body.dataset.theme = t;
@@ -166,13 +201,14 @@
       items.push(['New file inside…', () => promptNewFile(entry.path)]);
     }
     items.push(['Rename…', async () => {
-      const nn = window.prompt('New name/path:', entry.path);
+      const nn = await uiPrompt('Rename', 'New name/path:', entry.path);
       if (!nn || !workspace) return;
       try { await window.ry.fsRename(workspace, entry.path, nn); await refreshTree(); toast('Renamed', 'ok'); }
       catch (e) { toast(String(e), 'err'); }
     }]);
     items.push(['Delete', async () => {
-      if (!window.confirm(`Delete ${entry.path}?`)) return;
+      const ok = await uiConfirm('Delete', `Delete ${entry.path}? This cannot be undone.`, true);
+      if (!ok) return;
       try { await window.ry.fsDelete(workspace!, entry.path); await refreshTree(); toast('Deleted', 'ok'); }
       catch (e) { toast(String(e), 'err'); }
     }]);
@@ -191,7 +227,7 @@
   }
 
   async function promptNewFile(dir: string): Promise<void> {
-    const p = window.prompt(`New file path (inside ${dir || 'workspace'}):`, dir ? dir + '/' : '');
+    const p = await uiPrompt('New file', `File path (inside ${dir || 'workspace'}):`, dir ? dir + '/' : '');
     if (!p || !workspace) return;
     try { await window.ry.fsWrite(workspace, p, ''); await refreshTree(); openFile(p); }
     catch (e) { toast(String(e), 'err'); }
@@ -208,7 +244,7 @@
       el.className = 'tab' + (i === activeTabIdx ? ' active' : '');
       el.setAttribute('role', 'tab');
       el.innerHTML = `<span>${esc(relName(t.path))}${t.dirty ? ' •' : ''}</span><button class="close" title="Close">✕</button>`;
-      (el.querySelector('.close') as HTMLButtonElement).onclick = (ev) => { ev.stopPropagation(); closeTab(i); };
+      (el.querySelector('.close') as HTMLButtonElement).onclick = (ev) => { ev.stopPropagation(); void closeTab(i); };
       el.onclick = () => activateTab(i);
       bar.appendChild(el);
     });
@@ -223,10 +259,13 @@
     renderTabs();
   }
 
-  function closeTab(i: number): void {
+  async function closeTab(i: number): Promise<void> {
     const t = openTabs[i];
     if (!t) return;
-    if (t.dirty && !window.confirm(`${t.path} has unsaved changes. Close anyway?`)) return;
+    if (t.dirty) {
+      const ok = await uiConfirm('Unsaved changes', `${t.path} has unsaved changes. Close anyway?`, true);
+      if (!ok) return;
+    }
     t.model.dispose();
     openTabs.splice(i, 1);
     activeTabIdx = openTabs.length ? Math.max(0, i - 1) : -1;
@@ -503,8 +542,8 @@
       modal(`${kind} — approval required`, (body, close) => {
         body.innerHTML = `<div>Ryeditor AI requests permission for the following action:</div><div class="approval-detail">${esc(detail)}</div>
         <div style="color:var(--text-dim);font-size:11.5px">DANGEROUS-classified commands additionally require elevated permissions in Settings.</div>`;
-        addFootButton(body.parentElement as HTMLElement, 'Deny', 'btn-secondary', () => { window.ry.approvalRespond(reqId, false); close(); });
-        addFootButton(body.parentElement as HTMLElement, 'Approve', 'primary', () => { window.ry.approvalRespond(reqId, true); close(); });
+      addFootButton(footOf(body), 'Deny', 'btn-secondary', () => { window.ry.approvalRespond(reqId, false); close(); });
+      addFootButton(footOf(body), 'Approve', 'primary', () => { window.ry.approvalRespond(reqId, true); close(); });
       });
     });
     window.ry.onFileChanged(async (rel) => {
@@ -551,7 +590,33 @@
     let backend = 'child_process';
     try { backend = await window.ry.terminalCreate(id, workspace || undefined); } catch (e) { term.write('failed to start shell: ' + String(e)); }
     term.options.convertEol = backend === 'child_process';
-    term.onData((d: string) => window.ry.terminalWrite(id, d));
+
+    if (backend === 'child_process') {
+      term.write('\x1b[36mRyeditor shell — pipe mode (no PTY)\x1b[0m\r\nType a command and press Enter.\r\n');
+    }
+
+    // PTY backends echo natively; pipe backends need renderer-side line editing.
+    let inBuf = '';
+    term.onData((d: string) => {
+      if (backend === 'child_process') {
+        if (d === '\r') {
+          term.write('\r\n');
+          if (inBuf.trim().length) window.ry.terminalWrite(id, inBuf + '\n');
+          inBuf = '';
+          term.write('\u276f ');
+        } else if (d === '\x7f') {
+          if (inBuf.length) { inBuf = inBuf.slice(0, -1); term.write('\b \b'); }
+        } else if (d === '\x03') {
+          inBuf = '';
+          term.write('^C\r\n\u276f ');
+        } else if (d >= ' ' || d === '\t') {
+          inBuf += d;
+          term.write(d);
+        }
+      } else {
+        window.ry.terminalWrite(id, d);
+      }
+    });
     terms.set(id, { term, fit, host, backend });
     try { fit.fit(); window.ry.terminalResize(id, term.cols, term.rows); } catch { /* hidden */ }
     const tab = document.createElement('div');
@@ -614,6 +679,7 @@
         workspace = settings.lastWorkspace;
         await refreshTree();
         await newTerminalIfNone();
+        if (await window.ry.fsExists(workspace, 'README.md')) await openFile('README.md');
         setStatus();
       } catch { /* last workspace vanished */ }
     } else {
@@ -683,8 +749,8 @@
         renderProvRows(body.querySelector('#prov-list') as HTMLElement);
       });
 
-      addFootButton(body.parentElement as HTMLElement, 'Cancel', 'btn-secondary', close);
-      addFootButton(body.parentElement as HTMLElement, 'Save', 'primary', async () => {
+      addFootButton(footOf(body), 'Cancel', 'btn-secondary', close);
+      addFootButton(footOf(body), 'Save', 'primary', async () => {
         settings.agentProviderId = (body.querySelector('#set-agent') as HTMLSelectElement).value;
         settings.autoCompleteProviderId = (body.querySelector('#set-ac') as HTMLSelectElement).value;
         settings.autoCompleteEnabled = (body.querySelector('#set-ac-en') as HTMLInputElement).checked;
@@ -744,8 +810,8 @@
         <label>Model</label>
         <input type="text" id="ep-model" value="${esc(p.model)}" placeholder="e.g. qwen2.5-coder:7b / gpt-4o-mini / claude-3-5-sonnet-latest" />
       `;
-      addFootButton(body.parentElement as HTMLElement, 'Cancel', 'btn-secondary', close);
-      addFootButton(body.parentElement as HTMLElement, 'Save', 'primary', async () => {
+      addFootButton(footOf(body), 'Cancel', 'btn-secondary', close);
+      addFootButton(footOf(body), 'Save', 'primary', async () => {
         p.type = (body.querySelector('#ep-type') as HTMLSelectElement).value as ProviderCfg['type'];
         p.name = (body.querySelector('#ep-name') as HTMLInputElement).value || p.type;
         p.baseUrl = (body.querySelector('#ep-url') as HTMLInputElement).value;
@@ -769,8 +835,8 @@
       const val = (settings.memory || {})[workspace!] || '';
       body.innerHTML = `<label>Notes about this project the AI should always know:</label>
         <textarea id="mem-ta" rows="10" placeholder="Stack, commands, conventions…">${esc(val)}</textarea>`;
-      addFootButton(body.parentElement as HTMLElement, 'Cancel', 'btn-secondary', close);
-      addFootButton(body.parentElement as HTMLElement, 'Save', 'primary', async () => {
+      addFootButton(footOf(body), 'Cancel', 'btn-secondary', close);
+      addFootButton(footOf(body), 'Save', 'primary', async () => {
         settings.memory = settings.memory || {};
         settings.memory[workspace!] = (body.querySelector('#mem-ta') as HTMLTextAreaElement).value;
         await window.ry.settingsSave(settings);
@@ -858,7 +924,7 @@
         else if (ev.key === 'Enter' && filtered[sel]) { close(); filtered[sel].run(); }
         else if (ev.key === 'Escape') close();
       };
-      addFootButton(body.parentElement as HTMLElement, 'Close', 'btn-secondary', close);
+      addFootButton(footOf(body), 'Close', 'btn-secondary', close);
       draw();
       setTimeout(() => q.focus(), 30);
     });
@@ -867,6 +933,8 @@
   // ------------------------------------------------------------------ boot
   function wireChrome(): void {
     $('btn-open-folder').onclick = () => void openFolderFlow();
+    const emptyOpen = $('btn-empty-open');
+    if (emptyOpen) emptyOpen.onclick = () => void openFolderFlow();
     $('btn-settings').onclick = openSettings;
     $('btn-palette').onclick = openPalette;
     $('btn-memory').onclick = openMemory;
@@ -877,7 +945,7 @@
     });
     $('btn-new-file').onclick = () => promptNewFile(selectedTreePath || '');
     $('btn-new-folder').onclick = async () => {
-      const p = window.prompt('New folder path:', selectedTreePath || '');
+      const p = await uiPrompt('New folder', 'Folder path:', selectedTreePath || '');
       if (!p || !workspace) return;
       try { await window.ry.fsMkdir(workspace, p); await refreshTree(); } catch (e) { toast(String(e), 'err'); }
     };

@@ -46,27 +46,58 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
-  if (isSmoke) {
+  const shotPath = (() => {
+    const a = process.argv.find((x) => x.startsWith('--screenshot='));
+    return a ? a.slice('--screenshot='.length) : null;
+  })();
+
+  if (isSmoke || shotPath) {
     let rendererErrors = 0;
     win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
-      console.log(`[renderer:console] L${level} ${message} (${sourceId}:${line})`);
+      if (isSmoke) console.log(`[renderer:console] L${level} ${message} (${sourceId}:${line})`);
       if (level >= 3) rendererErrors++;
     });
     win.webContents.on('did-finish-load', () => {
-      setTimeout(() => {
-        if (rendererErrors > 0) {
-          console.error(`RYEDITOR_SMOKE_FAILED renderer_errors=${rendererErrors}`);
-          app.exit(2);
-        } else {
-          console.log('RYEDITOR_SMOKE_OK');
-          app.exit(0);
+      setTimeout(async () => {
+        try {
+          if (shotPath) {
+            const img = await win!.webContents.capturePage();
+            fs.writeFileSync(shotPath, img.toPNG());
+            console.log(`RYEDITOR_SCREENSHOT_OK ${shotPath}`);
+            app.exit(0);
+            return;
+          }
+          // Functional smoke: bridge globals + real DOM interaction (open & close Settings modal).
+          const checks = await win!.webContents.executeJavaScript(
+            `(() => {
+              const globals = !!window.ry && !!window.monaco && !!window.Terminal && !!window.FitAddon;
+              document.getElementById('btn-settings').click();
+              const modalOk = !!document.querySelector('#modal-box .modal-head');
+              const closeBtn = document.querySelector('#modal-box .modal-head button');
+              if (closeBtn) closeBtn.click();
+              const modalClosed = document.getElementById('modal-backdrop').classList.contains('hidden');
+              return JSON.stringify({ globals, modalOk, modalClosed });
+            })()`
+          );
+          const parsed = JSON.parse(checks);
+          console.log(`[smoke] globals=${parsed.globals} modalOpen=${parsed.modalOk} modalClosed=${parsed.modalClosed} termBackend=${term.terminalBackendName()}`);
+          if (rendererErrors > 0 || !parsed.globals || !parsed.modalOk || !parsed.modalClosed) {
+            console.error(`RYEDITOR_SMOKE_FAILED renderer_errors=${rendererErrors} globals=${parsed.globals} modalOpen=${parsed.modalOk} modalClosed=${parsed.modalClosed}`);
+            app.exit(2);
+          } else {
+            console.log('RYEDITOR_SMOKE_OK');
+            app.exit(0);
+          }
+        } catch (e) {
+          console.error(`RYEDITOR_SMOKE_FAILED exception=${e instanceof Error ? e.message : String(e)}`);
+          app.exit(3);
         }
-      }, 1500);
+      }, 3000);
     });
     setTimeout(() => {
       console.error('RYEDITOR_SMOKE_TIMEOUT');
       app.exit(1);
-    }, 30000);
+    }, 45000);
   }
 }
 

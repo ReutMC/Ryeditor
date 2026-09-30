@@ -34,6 +34,28 @@ function baseUrlFor(p: ProviderCfg): string {
   }
 }
 
+/** fetch with friendly, actionable connection errors. */
+async function pf(provider: ProviderCfg, url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    const local = /localhost|127\.0\.0\.1/.test(url);
+    let origin = url;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      /* keep raw */
+    }
+    throw new Error(
+      `Cannot reach "${provider.name}" at ${origin} — ${reason}` +
+        (local
+          ? `. Make sure the local AI server is running (e.g. run "ollama serve", or in LM Studio start the local server).`
+          : `. Check your network connection, API key and base URL in Settings → AI Providers.`)
+    );
+  }
+}
+
 function authHeaders(p: ProviderCfg): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
   if (p.type === 'anthropic') {
@@ -117,7 +139,7 @@ export async function streamChat(
   };
 
   if (provider.type === 'openai' || provider.type === 'openai-compatible') {
-    const res = await fetch(`${base}/chat/completions`, {
+    const res = await pf(provider, `${base}/chat/completions`, {
       method: 'POST',
       headers: authHeaders(provider),
       signal,
@@ -135,7 +157,7 @@ export async function streamChat(
   } else if (provider.type === 'anthropic') {
     const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
     const rest = messages.filter((m) => m.role !== 'system');
-    const res = await fetch(`${base}/v1/messages`, {
+    const res = await pf(provider, `${base}/v1/messages`, {
       method: 'POST',
       headers: authHeaders(provider),
       signal,
@@ -162,7 +184,7 @@ export async function streamChat(
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
     const url = `${base}/v1beta/models/${encodeURIComponent(provider.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(provider.apiKey || '')}`;
-    const res = await fetch(url, {
+    const res = await pf(provider, url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
@@ -180,7 +202,7 @@ export async function streamChat(
     });
   } else {
     // ollama — NDJSON streaming
-    const res = await fetch(`${base}/api/chat`, {
+    const res = await pf(provider, `${base}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
@@ -212,7 +234,7 @@ export async function completeOnce(
   const out = '';
 
   if (provider.type === 'openai' || provider.type === 'openai-compatible') {
-    const res = await fetch(`${base}/chat/completions`, {
+    const res = await pf(provider, `${base}/chat/completions`, {
       method: 'POST',
       headers: authHeaders(provider),
       signal,
@@ -230,7 +252,7 @@ export async function completeOnce(
     return (j.choices?.[0]?.message?.content as string) || out;
   }
   if (provider.type === 'anthropic') {
-    const res = await fetch(`${base}/v1/messages`, {
+    const res = await pf(provider, `${base}/v1/messages`, {
       method: 'POST',
       headers: authHeaders(provider),
       signal,
@@ -247,7 +269,7 @@ export async function completeOnce(
   }
   if (provider.type === 'gemini') {
     const url = `${base}/v1beta/models/${encodeURIComponent(provider.model)}:generateContent?key=${encodeURIComponent(provider.apiKey || '')}`;
-    const res = await fetch(url, {
+    const res = await pf(provider, url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
@@ -262,7 +284,7 @@ export async function completeOnce(
     return parts.map((p: { text?: string }) => p.text || '').join('');
   }
   // ollama
-  const res = await fetch(`${base}/api/chat`, {
+  const res = await pf(provider, `${base}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal,

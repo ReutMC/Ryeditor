@@ -38,7 +38,11 @@ function loadPty(): boolean {
 }
 
 export function defaultShell(): string {
-  if (process.platform === 'win32') return process.env.ComSpec || 'powershell.exe';
+  if (process.platform === 'win32') {
+    const ps = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    if (fs.existsSync(ps)) return ps;
+    return process.env.ComSpec || 'cmd.exe';
+  }
   return process.env.SHELL || '/bin/bash';
 }
 

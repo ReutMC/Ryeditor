@@ -86,7 +86,19 @@
       <!-- Main column -->
       <div id="main-col">
         <div id="tabs-bar" role="tablist"></div>
-        <div id="editor-host"><div id="monaco-host"></div><div id="editor-empty">Open a folder and start editing.<br/><span class="hint">Ctrl+O — open folder · Ctrl+S — save · Alt+\ — inline AI</span></div></div>
+        <div id="editor-host"><div id="monaco-host"></div><div id="editor-empty">
+          <svg width="72" height="72" viewBox="0 0 512 512" aria-hidden="true">
+            <rect x="16" y="16" width="480" height="480" rx="96" fill="#0E1726"/>
+            <path d="M170 140 V372" stroke="url(#ge1)" stroke-width="44" stroke-linecap="round" fill="none"/>
+            <path d="M170 162 H240 a58 58 0 0 1 0 116 H170" stroke="url(#ge1)" stroke-width="44" stroke-linecap="round" fill="none"/>
+            <path d="M248 286 L330 372" stroke="#2BD9C7" stroke-width="44" stroke-linecap="round" fill="none"/>
+            <defs><linearGradient id="ge1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2F6FED"/><stop offset="1" stop-color="#2BD9C7"/></linearGradient></defs>
+          </svg>
+          <div class="empty-title">Welcome to Ryeditor</div>
+          <div class="empty-sub">Open a folder to start editing — with AI, terminal and inline completions by your side.</div>
+          <button id="btn-empty-open" class="primary">📂 Open Folder (Ctrl+O)</button>
+          <span class="hint">Ctrl+S save · Ctrl+` terminal · Alt+\ inline AI · Ctrl+Shift+P commands</span>
+        </div></div>
         <div id="panel-terminal" class="hidden">
           <div class="term-head">
             <span>TERMINAL <span id="term-backend" class="badge"></span></span>
